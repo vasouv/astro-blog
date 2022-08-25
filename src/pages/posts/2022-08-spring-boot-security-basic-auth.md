@@ -68,3 +68,57 @@ spring.security.user.name = vasouv
 spring.security.user.password = vasouv
 ```
 Now by entering our own credentials in Postman, we can access the endpoints again.
+
+## Override default configuration
+
+### Override the UserDetailsService with an InMemoryUserDetailsManager
+By using the InMemoryUserDetailsManager, we keep the users' credentials in memory instead of a database. This approach is perhaps ideal for a simple project because there's minimal configuration and also we can have multiple users that can authenticate on the application.
+
+#### Before Spring Boot 2.7
+```java
+@Configuration
+public class ProjectConfig extends WebSecurityConfigurerAdapter {
+    
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.httpBasic();
+        http.authorizeRequests()
+            .antMatchers("/", "/unsecured").permitAll()
+            .anyRequest().authenticated();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+
+        var userDetailsService = new InMemoryUserDetailsManager();
+
+        var vasouv = User
+            .withUsername("vasouv")
+            .password(passwordEncoder().encode("vasouv"))
+            .authorities("read")
+            .build();
+        var user123 = User
+            .withUsername("user123")
+            .password(passwordEncoder().encode("user123"))
+            .authorities("read")
+            .build();
+
+        userDetailsService.createUser(vasouv);
+        userDetailsService.createUser(user123);
+
+        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
+    }
+
+}
+```
+
+Here, the password encoder is created as a bean and can be used in the application. The overriden `configure(HttpSecurity http)` method configures HTTP Basic for authentication, leaves the **/** and **/unsecured** endpoints available to all users, and secures all other endpoints.
+
+The overriden `configure(AuthenticationManagerBuilder auth)` sets up an **InMemoryUserDetailsManager** for the **UserDetailsService**. The users can be added to the UserDetailsService where we can set up the password manager as well. Then, the framework takes over and handles the credentials whenever calls are made to the endpoints.
+
+#### Spring Boot 2.7 and after
